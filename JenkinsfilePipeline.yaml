@@ -1,0 +1,62 @@
+  pipeline {
+  agent {
+    kubernetes {
+      yaml """
+    apiVersion: v1
+    kind: Pod
+    spec:
+      containers:
+      - name: maven
+        image: nginx
+        command:
+        - sleep
+        args:
+        - 99
+      - name: kaniko
+        image: gcr.io/kaniko-project/executor:debug
+        command:
+        - sleep
+        args:
+        - 999
+        volumeMounts:
+        - name: kaniko-secret
+          mountPath: /kaniko/.docker
+      restartPolicy: Never
+      volumes:
+      - name: kaniko-secret
+        secret:
+            secretName: jfrog
+            items:
+            - key: .dockerconfigjson
+              path: config.json
+"""
+    }
+  }
+    parameters {
+        string(name: 'DockerFile_Folder', description: 'docker folder for dockerfile of image')
+        string(name: 'IMAGE_NAME', description: 'image name')
+        string(name: 'IMAGE_TAG',  description: 'image tag')
+    }
+ stages {
+      
+    stage('Get a docker image') {
+     steps{    
+      git url: 'https://github.vodafone.com/VFGroup-MyVodafone-OnePlatform/DevOps-Resources.git', branch: 'pre-master', credentialsId: 'GHE-token'
+      container('maven') {
+          sh '''
+          echo pwd
+          '''
+      }
+    }
+    }
+    stage('Build Image') {
+     steps{    
+      container('kaniko') {
+          sh '''
+            /kaniko/executor --context `${DockerFile_Folder}` --destination artifactory.vodafone.com/docker-vfgroup-oneplatform-local/${IMAGE_NAME}:${IMAGE_TAG}
+          '''
+      }
+    }
+   }
+  }
+}
