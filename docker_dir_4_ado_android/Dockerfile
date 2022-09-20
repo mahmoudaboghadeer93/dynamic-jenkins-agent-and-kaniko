@@ -20,7 +20,7 @@ ARG JAVA_VERSION=JAVA_VERSION_V
 #ARG KOTLIN_VERSION=KOTLIN_VERSION_V
 ARG SONAR_SCANNER_VERSION=SONAR_SCANNER_VERSION_V
 ####install needed packages
-RUN apt -y install unzip wget vim hub python3 python3-venv python3-pip npm ghp-import ruby-full
+RUN apt-get install -y unzip wget vim hub python3 python3-venv python3-pip npm ghp-import ruby-full
 
 # install n & node
 RUN npm install -g n
