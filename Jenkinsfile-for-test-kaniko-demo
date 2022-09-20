@@ -1,0 +1,102 @@
+pipeline {
+    agent {
+        kubernetes {
+            yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:v1.7.0-debug
+    tty: true
+    command:
+    - /busybox/sleep
+    - infinity
+    volumeMounts:
+       - name: kaniko-secret
+         mountPath: /kaniko/.docker
+  restartPolicy: Never
+  volumes:
+      - name: kaniko-secret
+        secret:
+            secretName: jfrog
+            items:
+            - key: .dockerconfigjson
+              path: config.json    
+'''
+        }
+    }
+    parameters {
+        string(name: 'DockerFile_Folder', description: 'docker folder for dockerfile of image')
+        string(name: 'IMAGE_NAME', description: 'image name')
+        string(name: 'IMAGE_TAG',  description: 'image tag')
+        //////////////////////////////////////////
+        string(name: 'NODE_VERSION', defaultValue: '16.0.0', description: 'node version')
+        string(name: 'JAVA_VERSION', defaultValue: 'openjdk-11-jdk', description: 'java version')   
+        string(name: 'WM_VERSION', defaultValue: 'v2021.03.01.00', description: 'Watchman version')
+        // string(name: 'KOTLIN_VERSION', defaultValue: '1.2.30', description: 'kotlin version')
+        string(name: 'SONAR_SCANNER_VERSION', defaultValue: 'sonar-scanner-cli-3.2.0.1227-linux', description: 'sonar-scanner version')   
+        string(name: 'NPM_VERSION', defaultValue: '7.10.0', description: 'npm version')
+        string(name: 'GRADLE_VERSION', defaultValue: 'gradle-6.5', description: 'gradle version')
+        string(name: 'ANDROID_SDK_VERSION', defaultValue: 'commandlinetools-linux-7583922_latest', description: 'Android SDK version')
+        string(name: 'SDK_BUILD_TOOLS_VERSION_1', defaultValue: '30.0.2', description: 'SDK buid tool version')
+        string(name: 'SDK_BUILD_TOOLS_VERSION_2', defaultValue: '30.0.3', description: 'SDK buid tool version')
+        string(name: 'SKD_PLATFORMS_1', defaultValue: 'android-30', description: 'SDK platform version')
+        string(name: 'SKD_PLATFORMS_2', defaultValue: 'android-29', description: 'SDK platform version')    
+        
+    }    
+    stages {
+        stage('setup the dockerfile') {
+            steps {
+                script {
+                    configFileProvider([configFile(fileId: '35079d5e-19f3-43ce-9984-d4320c7b8884', variable: 'GIT_CRED')]) {
+                        configFileProvider([configFile(fileId: '2738a75e-8b67-4f9d-9fa3-08a778724c6c', variable: 'NPMRC')]) {
+                            configFileProvider([configFile(fileId: '1b09f2f8-7f4d-4187-ad67-0930c71a83d3', variable: 'NPMRCS_DEFUALT')]) {
+                                configFileProvider([configFile(fileId: 'e2ed5875-ac3b-4c2a-937d-e3f1810b0cbf', variable: 'NPMRCS_PROD')]) {
+                                    configFileProvider([configFile(fileId: 'e3e8bff8-0776-4bed-b062-4cb7f830c9eb', variable: 'NPMRCS_STAGE')]) {
+                                        configFileProvider([configFile(fileId: '12f655eb-b2d2-4f09-a839-1e28582f62a2', variable: 'NPMRCS_TEST')]) {
+                                            configFileProvider([configFile(fileId: 'd476129c-1a3d-4760-990e-b6b2bcf225e6', variable: 'NPMRCS_ALBANIA')]) {
+                                                script {
+                                                    git url: 'https://github.com/mahmoudaboghadeer93/dynamic-jenkins-agent-and-kaniko.git', branch: 'main'
+                                                    sh "ls"
+                                                    sh '''
+                                                    cd ${DockerFile_Folder}
+                                                    cat $GIT_CRED > git-credentials
+                                                    sed -i -e \"s|NODE_VERSION_V|${NODE_VERSION}|\" Dockerfile
+                                                    sed -i -e \"s|JAVA_VERSION_V|${JAVA_VERSION}|\" Dockerfile
+                                                    sed -i -e \"s|WM_VERSION_V|${WM_VERSION}|\" Dockerfile
+                                                    sed -i -e \"s|SONAR_SCANNER_VERSION_V|${SONAR_SCANNER_VERSION}|\" Dockerfile
+                                                    sed -i -e \"s|NPM_VERSION_V|${NPM_VERSION}|\" Dockerfile
+                                                    sed -i -e \"s|GRADLE_VERSION_V|${GRADLE_VERSION}|\" Dockerfile
+                                                    sed -i -e \"s|ANDROID_SDK_VERSION_V|${ANDROID_SDK_VERSION}|\" Dockerfile
+                                                    sed -i -e \"s|SDK_BUILD_TOOLS_VERSION_1_V|${SDK_BUILD_TOOLS_VERSION_1}|\" Dockerfile
+                                                    sed -i -e \"s|SDK_BUILD_TOOLS_VERSION_2_V|${SDK_BUILD_TOOLS_VERSION_2}|\" Dockerfile
+                                                    sed -i -e \"s|SKD_PLATFORMS_1_V|${SKD_PLATFORMS_1}|\" Dockerfile
+                                                    sed -i -e \"s|SKD_PLATFORMS_2_V|${SKD_PLATFORMS_2}|\" Dockerfile
+                                                    '''
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        stage('Build image') {
+            environment {
+                PATH = "/busybox:/kaniko:$PATH"
+            }
+            steps {
+                container(name: 'kaniko', shell: '/busybox/sh') {
+                    git url: 'https://github.com/mahmoudaboghadeer93/dynamic-jenkins-agent-and-kaniko.git', branch: 'main'
+                    sh '''#!/busybox/sh
+                     /kaniko/executor --context ${DockerFile_Folder} --destination artifactory.vodafone.com/docker-vfgroup-oneplatform-local/${IMAGE_NAME}:${IMAGE_TAG} 
+                    '''
+                }
+            }
+        }
+    }
+}
